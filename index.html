@@ -126,8 +126,7 @@
             const workerCode = `
                 let db = [];
                 let headers = [];
-                const numericColumns = ['startyear', 'rank', 'averagerating', 'numvotes', 'runtimeminutes'];
-
+                const numericColumns = ['unit price', 'quantity', 'tax 5%', 'total', 'cogs', 'gross margin percentage', 'gross income', 'rating'];
                 self.onmessage = function(e) {
                     const { type, payload } = e.data;
                     
