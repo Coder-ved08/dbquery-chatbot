@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBQuery Chatbot (Advanced)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: #4a5568;
+            border-radius: 3px;
+        }
+        .chat-container::-webkit-scrollbar-track {
+            background-color: #1a202c;
+        }
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #4f46e5;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div id="app-container" class="w-full max-w-4xl h-[90vh] bg-gray-800 rounded-2xl shadow-2xl flex flex-col transition-all duration-500">
+        
+        <!-- Header -->
+        <div class="flex-shrink-0 p-4 border-b border-gray-700 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-100">DBQuery Chatbot</h1>
+            <div id="db-status" class="flex items-center space-x-2">
+                <span class="text-sm text-gray-400">No Database Loaded</span>
+                <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-grow flex flex-col md:flex-row overflow-hidden">
+
+            <!-- Control Panel -->
+            <div class="w-full md:w-1/3 p-6 border-b md:border-b-0 md:border-r border-gray-700 flex flex-col space-y-6">
+                <div>
+                    <h2 class="text-lg font-semibold mb-3">1. Load Your Data</h2>
+                    <label for="file-upload" class="w-full cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg inline-block text-center transition-colors">
+                        Upload CSV File
+                    </label>
+                    <input id="file-upload" type="file" class="hidden" accept=".csv">
+                    <p id="file-name" class="text-sm text-gray-400 mt-2 truncate"></p>
+                </div>
+                
+                <div>
+                    <h2 class="text-lg font-semibold mb-3">2. Select Mode</h2>
+                    <div class="flex bg-gray-700 rounded-lg p-1">
+                        <button id="mode-query" class="w-1/2 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white">Query</button>
+                        <button id="mode-reverse" class="w-1/2 py-2 text-sm font-medium rounded-md text-gray-300">Reverse Query</button>
+                    </div>
+                </div>
+
+                <div class="flex-grow p-4 bg-gray-900 rounded-lg overflow-auto">
+                    <h3 class="text-md font-semibold mb-2">Database Columns</h3>
+                    <ul id="column-list" class="text-gray-400 text-sm space-y-1">
+                        <li>No data loaded yet.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Chat Panel -->
+            <div class="flex-grow flex flex-col p-4">
+                <div id="chat-container" class="chat-container flex-grow overflow-y-auto mb-4 space-y-4 pr-2">
+                    <!-- Chat messages will be appended here -->
+                    <div class="flex items-start space-x-3">
+                        <div class="bg-indigo-600 p-2 rounded-full flex-shrink-0 mt-1">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                        </div>
+                        <div class="bg-gray-700 p-3 rounded-lg max-w-lg">
+                            <p class="text-sm">Hello! I'm an advanced DB Chatbot. After uploading a CSV, you can ask complex questions using multiple conditions with <b>AND</b> / <b>OR</b> and numerical operators like <b>&gt;</b>, <b>&lt;</b>, or <b>!=</b>.</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="chat-input-container" class="flex-shrink-0 flex items-center bg-gray-700 rounded-lg p-2">
+                    <input id="chat-input" type="text" placeholder="Type your message..." class="w-full bg-transparent text-white placeholder-gray-400 focus:outline-none px-2" disabled>
+                    <button id="send-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-full transition-colors" disabled>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const fileUpload = document.getElementById('file-upload');
+        const fileNameEl = document.getElementById('file-name');
+        const dbStatusEl = document.getElementById('db-status');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
+        const chatContainer = document.getElementById('chat-container');
+        const columnList = document.getElementById('column-list');
+        const modeQueryBtn = document.getElementById('mode-query');
+        const modeReverseBtn = document.getElementById('mode-reverse');
+        const chatInputContainer = document.getElementById('chat-input-container');
+
+        let db = [];
+        let headers = [];
+        let currentMode = 'query'; // 'query' or 'reverse'
+        let worker;
+
+        // --- Worker Setup ---
+        function setupWorker() {
+            const workerCode = `
+                let db = [];
+                let headers = [];
+                const numericColumns = ['startyear', 'rank', 'averagerating', 'numvotes', 'runtimeminutes'];
+
+                self.onmessage = function(e) {
+                    const { type, payload } = e.data;
+                    
+                    if (type === 'loadDB') {
+                        db = payload.data;
+                        headers = payload.headers;
+                        self.postMessage({ type: 'dbLoaded' });
+                    } else if (type === 'runQuery') {
+                        const result = processQuery(payload);
+                        self.postMessage({ type: 'queryResult', payload: result });
+                    } else if (type === 'runReverseQuery') {
+                        const result = processReverseQuery(payload);
+                        self.postMessage({ type: 'reverseQueryResult', payload: result });
+                    }
+                };
+
+                function parseCondition(conditionStr) {
+                    const match = conditionStr.trim().match(/(.*?)\\s*(!=|>=|<=|>|<|=|is|contains)\\s*['"]?(.*?)['"]?$/i);
+                    if (!match) return null;
+
+                    let value = match[3].trim();
+                    // Clean surrounding quotes
+                    if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) {
+                        value = value.substring(1, value.length - 1);
+                    }
+
+                    return {
+                        column: match[1].trim(),
+                        operator: match[2].toLowerCase(),
+                        value: value
+                    };
+                }
+
+                function checkCondition(row, condition) {
+                    const headerIndex = headers.findIndex(h => h.toLowerCase() === condition.column.toLowerCase());
+                    if (headerIndex === -1) return false;
+                    
+                    const colName = headers[headerIndex];
+                    const cellValue = row[colName];
+
+                    if (numericColumns.includes(colName.toLowerCase())) {
+                        const cellNum = parseFloat(cellValue);
+                        const valNum = parseFloat(condition.value);
+                        if (isNaN(cellNum) || isNaN(valNum)) return false; // Can't compare if not numbers
+
+                        switch (condition.operator) {
+                            case '>': return cellNum > valNum;
+                            case '<': return cellNum < valNum;
+                            case '>=': return cellNum >= valNum;
+                            case '<=': return cellNum <= valNum;
+                            case '=': case 'is': return cellNum === valNum;
+                            case '!=': return cellNum !== valNum;
+                            default: return false;
+                        }
+                    } else { // String comparison
+                        const cellStr = String(cellValue).toLowerCase();
+                        const valStr = String(condition.value).toLowerCase();
+                        switch (condition.operator) {
+                            case '=': case 'is': return cellStr === valStr;
+                            case '!=': return cellStr !== valStr;
+                            case 'contains': return cellStr.includes(valStr);
+                            default: return false;
+                        }
+                    }
+                }
+
+                function processQuery(query) {
+                    try {
+                        const lowerQuery = query.toLowerCase();
+                        if (!lowerQuery.includes('where')) {
+                             if (lowerQuery.startsWith('count')) return { text: \`The database has \${db.length} rows.\`, data: [] };
+                             if (lowerQuery.startsWith('show all') || lowerQuery.startsWith('list all')) return { text: \`Showing all \${db.length} rows.\`, data: db.slice(0, 100) };
+                             throw new Error("I can only handle queries with a 'WHERE' clause, 'count', or 'show all'.");
+                        }
+
+                        const whereClause = query.substring(lowerQuery.indexOf('where') + 5).trim();
+                        let results = [];
+                        
+                        if (whereClause.toLowerCase().includes(' or ')) {
+                            const conditionsStr = whereClause.split(/\\s+or\\s+/i);
+                            const conditions = conditionsStr.map(parseCondition).filter(c => c);
+                            if (conditions.length === 0) throw new Error("Invalid OR query format.");
+
+                            const resultSet = new Set();
+                            db.forEach(row => {
+                                for (const condition of conditions) {
+                                    if (checkCondition(row, condition)) {
+                                        resultSet.add(row);
+                                        break; 
+                                    }
+                                }
+                            });
+                            results = Array.from(resultSet);
+                            
+                        } else { // Default to AND
+                            const conditionsStr = whereClause.split(/\\s+and\\s+/i);
+                            const conditions = conditionsStr.map(parseCondition).filter(c => c);
+                            if (conditions.length === 0) throw new Error("Invalid AND/single query format.");
+
+                            results = db.filter(row => {
+                                return conditions.every(condition => checkCondition(row, condition));
+                            });
+                        }
+
+                        return { text: \`Found \${results.length} matching rows.\`, data: results.slice(0, 100) };
+
+                    } catch (error) {
+                         return { text: \`Query Error: \${error.message}\`, data: [] };
+                    }
+                }
+                
+                function processReverseQuery(answer) {
+                    // This function remains the same as it generates simple queries
+                    const suggestions = new Set();
+                    const lowerAnswer = String(answer).toLowerCase();
+
+                    if (!answer) return { text: "Please provide a value to search for.", suggestions: [] };
+
+                    db.forEach(row => {
+                        headers.forEach(header => {
+                            if (String(row[header]).toLowerCase().includes(lowerAnswer)) {
+                                suggestions.add(\`Show all records where \${header} contains '\${answer}'\`);
+                                suggestions.add(\`Find entries where \${header} is equal to '\${answer}'\`);
+                            }
+                        });
+                    });
+                    
+                    if (suggestions.size > 0) {
+                        return { text: "Here are some queries that might give you that answer:", suggestions: Array.from(suggestions) };
+                    } else {
+                        return { text: "Couldn't find that value in the database to generate queries.", suggestions: [] };
+                    }
+                }
+            `;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            return new Worker(URL.createObjectURL(blob));
+        }
+
+        worker = setupWorker();
+
+        // --- Event Listeners ---
+        fileUpload.addEventListener('change', handleFileUpload);
+        sendBtn.addEventListener('click', handleSendMessage);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleSendMessage();
+        });
+        modeQueryBtn.addEventListener('click', () => switchMode('query'));
+        modeReverseBtn.addEventListener('click', () => switchMode('reverse'));
+
+        worker.onmessage = function(e) {
+            const { type, payload } = e.data;
+            hideBotLoading();
+            if (type === 'dbLoaded') {
+                addBotMessage({ text: `Successfully loaded '${fileUpload.files[0].name}'. The database has ${db.length} rows and ${headers.length} columns. What would you like to know?` });
+            } else if (type === 'queryResult') {
+                addBotMessage(payload);
+            } else if (type === 'reverseQueryResult') {
+                 addBotMessage(payload);
+            }
+        };
+
+        // --- Functions ---
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            fileNameEl.textContent = file.name;
+            dbStatusEl.innerHTML = `<span class="text-sm text-yellow-400">Loading...</span><div class="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>`;
+            addBotMessage({ text: `Loading '${file.name}'...`, loading: true });
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    db = results.data;
+                    headers = results.meta.fields;
+                    worker.postMessage({ type: 'loadDB', payload: { data: db, headers: headers } });
+                    
+                    dbStatusEl.innerHTML = `<span class="text-sm text-green-400">Loaded</span><div class="w-3 h-3 bg-green-500 rounded-full"></div>`;
+                    chatInput.disabled = false;
+                    sendBtn.disabled = false;
+                    chatInputContainer.classList.remove('opacity-50', 'cursor-not-allowed');
+                    updateColumnList();
+                },
+                error: function(error) {
+                    console.error("File parsing error:", error);
+                    addBotMessage({ text: "Error parsing the CSV file. Please check the file format." });
+                     dbStatusEl.innerHTML = `<span class="text-sm text-red-400">Error</span><div class="w-3 h-3 bg-red-500 rounded-full"></div>`;
+                }
+            });
+        }
+
+        function handleSendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            addUserMessage(message);
+            chatInput.value = '';
+            showBotLoading();
+
+            if (currentMode === 'query') {
+                worker.postMessage({ type: 'runQuery', payload: message });
+            } else {
+                worker.postMessage({ type: 'runReverseQuery', payload: message });
+            }
+        }
+        
+        function switchMode(newMode) {
+            if (newMode === currentMode) return;
+            currentMode = newMode;
+            if (newMode === 'query') {
+                modeQueryBtn.classList.add('bg-indigo-600', 'text-white');
+                modeQueryBtn.classList.remove('text-gray-300');
+                modeReverseBtn.classList.remove('bg-indigo-600', 'text-white');
+                modeReverseBtn.classList.add('text-gray-300');
+                chatInput.placeholder = "Ask a complex question...";
+            } else {
+                modeReverseBtn.classList.add('bg-indigo-600', 'text-white');
+                modeReverseBtn.classList.remove('text-gray-300');
+                modeQueryBtn.classList.remove('bg-indigo-600', 'text-white');
+                modeQueryBtn.classList.add('text-gray-300');
+                chatInput.placeholder = "Enter a value to get query ideas...";
+            }
+        }
+        
+        function updateColumnList() {
+            columnList.innerHTML = '';
+            if (headers.length === 0) {
+                 columnList.innerHTML = '<li>No data loaded yet.</li>';
+            } else {
+                headers.forEach(header => {
+                    const li = document.createElement('li');
+                    li.textContent = header;
+                    li.className = 'bg-gray-700 px-2 py-1 rounded';
+                    columnList.appendChild(li);
+                });
+            }
+        }
+
+        function addUserMessage(message) {
+            const messageEl = `
+                <div class="flex items-start justify-end space-x-3">
+                    <div class="bg-gray-200 text-gray-900 p-3 rounded-lg max-w-lg">
+                        <p class="text-sm">${message}</p>
+                    </div>
+                     <div class="bg-gray-600 p-2 rounded-full flex-shrink-0 mt-1">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    </div>
+                </div>
+            `;
+            chatContainer.innerHTML += messageEl;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function addBotMessage({ text, data, suggestions, loading }) {
+            let content = `<p class="text-sm">${text}</p>`;
+
+            if(data && data.length > 0) {
+                content += createTableHTML(data);
+            }
+
+            if(suggestions && suggestions.length > 0) {
+                content += '<h4 class="text-sm font-semibold mt-3 mb-2">Suggested Queries:</h4>';
+                content += '<div class="space-y-2">';
+                suggestions.forEach(s => {
+                    content += `<button class="w-full text-left text-sm bg-gray-600 hover:bg-gray-500 p-2 rounded-lg transition-colors">${s}</button>`;
+                });
+                content += '</div>';
+            }
+            
+            const messageEl = `
+                 <div class="flex items-start space-x-3">
+                    <div class="bg-indigo-600 p-2 rounded-full flex-shrink-0 mt-1">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                    </div>
+                    <div class="bg-gray-700 p-3 rounded-lg max-w-full overflow-x-auto">
+                       ${content}
+                    </div>
+                </div>
+            `;
+            chatContainer.innerHTML += messageEl;
+            
+            // Add click listeners for suggested queries
+            chatContainer.querySelectorAll('.bg-gray-600').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    chatInput.value = btn.textContent;
+                    switchMode('query');
+                    handleSendMessage();
+                });
+            });
+
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        function showBotLoading() {
+             const loadingEl = `
+                <div id="bot-loading" class="flex items-start space-x-3">
+                    <div class="bg-indigo-600 p-2 rounded-full flex-shrink-0 mt-1">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                    </div>
+                    <div class="bg-gray-700 p-3 rounded-lg max-w-lg">
+                        <div class="loader"></div>
+                    </div>
+                </div>
+             `;
+             chatContainer.innerHTML += loadingEl;
+             chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function hideBotLoading() {
+            const loadingEl = document.getElementById('bot-loading');
+            if (loadingEl) loadingEl.remove();
+        }
+
+        function createTableHTML(data) {
+            if (!data || data.length === 0) return '';
+            const tableHeaders = Object.keys(data[0]);
+            let table = '<div class="mt-4 overflow-x-auto"><table class="min-w-full text-xs text-left text-gray-300">';
+            table += '<thead><tr class="bg-gray-600">';
+            tableHeaders.forEach(h => table += `<th class="p-2">${h}</th>`);
+            table += '</tr></thead><tbody>';
+            data.forEach(row => {
+                table += '<tr class="border-b border-gray-600">';
+                tableHeaders.forEach(h => table += `<td class="p-2">${row[h]}</td>`);
+                table += '</tr>';
+            });
+            table += '</tbody></table></div>';
+            return table;
+        }
+
+    </script>
+</body>
+</html>
+
